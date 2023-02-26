@@ -1,13 +1,20 @@
 import numpy as np
 from numpy.random import rand
 import matplotlib.pyplot as plt
-import copy
+import matplotlib
 import time
 
-
-# завёрнутая модель
-# нет внешнего поля
+# wrapped-out model
+# no external field
 # 3d
+
+# LaTeX
+matplotlib.rcParams['text.latex.preamble'] = \
+    r'\usepackage{amsmath} \usepackage{amssymb} \usepackage{palatino} \usepackage{textcomp}'
+matplotlib.rcParams['font.family'] = 'sans-serif'
+matplotlib.rcParams['font.sans-serif'] = ['Tahoma']
+
+
 def initialstate(N: int):
     """generates a random spin configuration for initial condition 3d"""
     state = []
@@ -19,19 +26,20 @@ def initialstate(N: int):
 
 def mcmove(config, beta):
     """Monte Carlo move using Metropolis algorithm """
-    for a in range(N):
-        for b in range(N):
-            for c in range(N):
-                i = np.random.randint(0, N)
-                j = np.random.randint(0, N)
-                k = np.random.randint(0, N)
-                s = config[i, j, k]
-                config2 = copy.deepcopy(config)
-                config2[i, j, k] *= -1
-                de = calcEnergy(config2) - calcEnergy(config)
-                if de < 0:
+    for i in range(N):
+        for j in range(N):
+            for k in range(N):
+                a = np.random.randint(0, N)
+                b = np.random.randint(0, N)
+                c = np.random.randint(0, N)
+                s = config[a, b, c]
+                nb = config[(a + 1) % N, b, c] + config[a, (b + 1) % N, c] \
+                     + config[(a - 1) % N, b, c] + config[a, (b - 1) % N, c] \
+                     + config[a, b, (c - 1) % N] + config[a, b, (c + 1) % N]
+                cost = 2 * s * nb  # * J
+                if cost < 0:
                     s *= -1
-                elif rand() < np.exp(-de * beta):
+                elif rand() < np.exp(-cost * beta):
                     s *= -1
                 config[a, b, c] = s
     return config
@@ -43,20 +51,12 @@ def calcEnergy(config):
     for i in range(len(config)):
         for j in range(len(config)):
             for k in range(len(config)):
-                nb = config[(i - 1) % N, j] * config[i, j] + \
-                     config[i, j] * config[(i + 1) % N, j] + \
-                     config[i, (j - 1) % N] * config[i, j] + \
-                     config[i, j] * config[i, (j + 1) % N] + \
-                     config[(i - 1) % N, k] * config[i, k] + \
-                     config[i, k] * config[(i + 1) % N, k] + \
-                     config[i, (k - 1) % N] * config[i, k] + \
-                     config[i, k] * config[i, (k + 1) % N] + \
-                     config[(j - 1) % N, k] * config[j, k] + \
-                     config[j, k] * config[(j + 1) % N, k] + \
-                     config[j, k] * config[j, (k - 1) % N] + \
-                     config[j, k] * config[j, (k + 1) % N]
-                energy += sum((-J * nb * config[i, j, k]) / 12.)
-    return energy
+                S = config[i, j, k]
+                nb = config[(i + 1) % N, j, k] + config[i, (j + 1) % N, k] \
+                     + config[(i - 1) % N, j, k] + config[i, (j - 1) % N, k] \
+                     + config[i, j, (k + 1) % N] + config[i, j, (k - 1) % N]
+                energy += -1 * nb * S
+    return energy / 4.
 
 
 def calcMag(config):
@@ -65,18 +65,21 @@ def calcMag(config):
     return mag
 
 
-# u = int(input('How much simulations do you need?\t'))
-u = 3
+# u = int(input('How much simulations do you need?\t')) + 1
+u = 4
+NN = [10, 15, 20]
+Start_time = time.time()
 for n in range(1, u):
     start_time = time.time()
-    nt = 20  # number of temperature points
-    N = 10  # size of the lattice, N x N
-    eqSteps = 5 * (10 ** 0)  # number of MC sweeps for equilibration
-    mcSteps = 1 * (10 ** 0)  # number of MC sweeps for calculation
-    J = 1  # interaction
+    nt = 500  # number of temperature points
+    N = 3  # size of the lattice, N x N
+    eqSteps = 2 ** 3  # number of MC sweeps for equilibration
+    mcSteps = 2 ** 3  # number of MC sweeps for calculation
+    N = NN[n - 1]
+    # J = 5  # interaction for strange reason kills the code
     # no external field
 
-    T = np.linspace(3., 6., nt)  # 4.5
+    T = np.linspace(2., 7., nt)  # 4.5
     E, M, C, X = np.array(np.zeros(nt), dtype=np.float64), np.array(np.zeros(nt), dtype=np.float64), np.array(
         np.zeros(nt), dtype=np.float64), np.array(np.zeros(nt), dtype=np.float64)
     n1, n2 = 1.0 / (mcSteps * N * N), 1.0 / (mcSteps * mcSteps * N * N)
@@ -105,47 +108,53 @@ for n in range(1, u):
         E[tt] = n1 * E1
         M[tt] = n1 * M1
         C[tt] = (n1 * E2 - n2 * E1 * E1) * (iT * iT)
-        X[tt] = (n1 * M2 - n2 * M1 * M1) * iT * J
+        X[tt] = (n1 * M2 - n2 * M1 * M1) * iT
         print(int(((tt + 1) / nt) * 10000) / 100, '% of №', n, ' test', sep='')
         if c == 0:
             c += 1
             between = time.time()
-        print('Left:',
-              int((((int(((between - ttt)) * 1000) / 1000) *
-                    ((100 / (int((1 / nt) * 10000) / 100)) - (tt + 1))
-                    ) / 60) * 100) / 100,
-              'mins')
+        if tt != range(nt)[-1]:
+            print('Left:',
+                  int((((int(((between - ttt)) * 1000) / 1000) *
+                        ((100 / (int((1 / nt) * 10000) / 100)) - (tt + 1))
+                        ) / 60) * 100) / 100,
+                  'mins')
     # plot the calculated values
+    print('Creating plots for №', n, ' test', sep='')
     f = plt.figure(figsize=(18, 10))
 
     sp1 = f.add_subplot(2, 2, 1)
-    plt.scatter(T, E, s=50, marker='o', color='IndianRed')
-    plt.xlabel("Temperature (T)", fontsize=20)
-    plt.ylabel("Energy ", fontsize=20)
+    plt.scatter(T, E, s=20, marker='o', color='IndianRed')
+    plt.xlabel("$T$", fontsize=10)
+    plt.ylabel("E", fontsize=10)
     plt.axis('tight')
 
     sp2 = f.add_subplot(2, 2, 2)
-    plt.scatter(T, abs(M), s=50, marker='o', color='RoyalBlue')
-    plt.xlabel("Temperature (T)", fontsize=20)
-    plt.ylabel("Magnetization ", fontsize=20)
+    plt.scatter(T, abs(M), s=20, marker='o', color='RoyalBlue')
+    plt.xlabel("$T$", fontsize=10)
+    plt.ylabel("M ", fontsize=10)
     plt.axis('tight')
 
     sp3 = f.add_subplot(2, 2, 3)
-    plt.scatter(T, C, s=50, marker='o', color='IndianRed')
-    plt.xlabel("Temperature (T)", fontsize=20)
-    plt.ylabel("Specific Heat ", fontsize=20)
+    plt.scatter(T, C, s=20, marker='o', color='IndianRed')
+    plt.xlabel("$T$", fontsize=10)
+    plt.ylabel("$C_v$", fontsize=10)
     plt.axis('tight')
 
     sp4 = f.add_subplot(2, 2, 4)
-    plt.scatter(T, X, s=50, marker='o', color='RoyalBlue')
-    plt.xlabel("Temperature (T)", fontsize=20)
-    plt.ylabel("Susceptibility", fontsize=20)
+    plt.scatter(T, X, s=20, marker='o', color='RoyalBlue')
+    plt.xlabel("$T$", fontsize=10)
+    plt.ylabel("$\chi$", fontsize=10)
     plt.axis('tight')
 
-    name = 'ising_3d_MC_test' + str(n) + '.png'
-    plt.savefig(name, bbox_inches='tight', dpi=800)  # plotting
+    name = 'ising_3d_MC_test' + str(n) + '_N=' + str(N) + '.png'
+    plt.savefig(name, bbox_inches='tight', dpi=500)  # plotting
     print('№', n, ' test completed', sep='')
-    if n == 1:
-        print("--- %s minutes per test---" % (
-                int(((time.time() - start_time) / 60) * 1000) / 1000))  # timing of each test
-    break
+    print('------')
+    print("%s minutes elapsed" % (
+            int(((time.time() - start_time) / 60) * 1000) / 1000))  # elapsed time
+    print('------')
+    if n == u - 1:
+        print("Total %s minutes elapsed" % (
+                int(((time.time() - Start_time) / 60) * 1000) / 1000))  # elapsed time
+    # break

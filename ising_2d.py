@@ -19,7 +19,8 @@ def mcmove(config, beta):
             a = np.random.randint(0, N)
             b = np.random.randint(0, N)
             s = config[a, b]
-            nb = config[(a + 1) % N, b] + config[a, (b + 1) % N] + config[(a - 1) % N, b] + config[a, (b - 1) % N]
+            nb = config[(a + 1) % N, b] + config[a, (b + 1) % N] + \
+                 config[(a - 1) % N, b] + config[a, (b - 1) % N]
             cost = 2 * s * nb
             if cost < 0:
                 s *= -1
@@ -34,11 +35,9 @@ def calcEnergy(config):
     energy = 0
     for i in range(len(config)):
         for j in range(len(config)):
-            S = config[i, j]
             nb = config[(i + 1) % N, j] + config[i, (j + 1) % N] \
                  + config[(i - 1) % N, j] + config[i, (j - 1) % N]
-            energy += -nb * S
-            print(energy)
+            energy += -nb * config[i, j]
     return energy / 4.
 
 
@@ -52,8 +51,8 @@ for n in range(1, 3):
     start_time = time.time()
     nt = 150  # number of temperature points
     N = 20  # size of the lattice, N x N
-    eqSteps = 2 ** 8  # number of MC sweeps for equilibration
-    mcSteps = 2 ** 8  # number of MC sweeps for calculation
+    eqSteps = 2 ** 6  # number of MC sweeps for equilibration
+    mcSteps = 2 ** 6  # number of MC sweeps for calculation
 
     T = np.linspace(0.5, 7., nt) #2.3
     E, M, C, X = np.zeros(nt), np.zeros(nt), np.zeros(nt), np.zeros(nt)
@@ -69,7 +68,6 @@ for n in range(1, 3):
 
         for i in range(eqSteps):  # equilibrate
             mcmove(config, iT)  # Monte Carlo moves
-
         for i in range(mcSteps):
             mcmove(config, iT)
             Ene = calcEnergy(config)  # calculate the energy
@@ -92,7 +90,6 @@ for n in range(1, 3):
               ((100/(int((1 / nt) * 10000) / 100))-tt)
               )/60)*100)/100,
               'mins')
-
     f = plt.figure(figsize=(18, 10))  # plot the calculated values
 
     sp1 = f.add_subplot(2, 2, 1)
