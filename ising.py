@@ -2,21 +2,15 @@ from __future__ import division
 import numpy as np
 from numpy.random import rand
 import matplotlib.pyplot as plt
+import time
+
 
 # thanks https://rajeshrinet.github.io/blog/2014/ising-model/
-
-# Сделать эксперимент на разных решетках и вычислить критические индексы для разных типов решётки.
-# Сравнить со значениями аналитических (точных) расчетов.
-
-# Из-за универсальности будет видно, что индексы не зависят в критической точке от типа решетки,
-# а зависят только от размерности пространства.
-
 
 def initialstate(N):
     ''' generates a random spin configuration for initial condition'''
     state = 2 * np.random.randint(2, size=(N, N)) - 1
     return state
-
 
 def mcmove(config, beta):
     '''Monte Carlo move using Metropolis algorithm '''
@@ -44,6 +38,7 @@ def calcEnergy(config):
             nb = config[(i + 1) % N, j] + config[i, (j + 1) % N] \
                  + config[(i - 1) % N, j] + config[i, (j - 1) % N]
             energy += -nb * S
+            print(energy)
     return energy / 4.
 
 
@@ -53,69 +48,78 @@ def calcMag(config):
     return mag
 
 
-# change these parameters for a smaller (faster) simulation
-nt = 100  # number of temperature points
-N = 32  # size of the lattice, N x N
-eqSteps = 2048  # number of MC sweeps for equilibration
-mcSteps = 2048  # number of MC sweeps for calculation
+for n in range(1, 3):
+    start_time = time.time()
+    nt = 150  # number of temperature points
+    N = 20  # size of the lattice, N x N
+    eqSteps = 2 ** 8  # number of MC sweeps for equilibration
+    mcSteps = 2 ** 8  # number of MC sweeps for calculation
 
-T = np.linspace(1.53, 3.28, nt)
-E, M, C, X = np.zeros(nt), np.zeros(nt), np.zeros(nt), np.zeros(nt)
-n1, n2 = 1.0 / (mcSteps * N * N), 1.0 / (mcSteps * mcSteps * N * N)
-# divide by number of samples, and by system size to get intensive values
+    T = np.linspace(0.5, 7., nt) #2.3
+    E, M, C, X = np.zeros(nt), np.zeros(nt), np.zeros(nt), np.zeros(nt)
+    n1, n2 = 1.0 / (mcSteps * N * N), 1.0 / (mcSteps * mcSteps * N * N)
+    ttt = time.time()
+    c = 0
+    between = 0
+    for tt in range(nt):
+        E1 = M1 = E2 = M2 = 0
+        config = initialstate(N)
+        iT = 1.0 / T[tt]
+        iT2 = iT * iT
 
-# ----------------------------------------------------------------------
-#  MAIN PART OF THE CODE
-# ----------------------------------------------------------------------
-for tt in range(nt):
-    E1 = M1 = E2 = M2 = 0
-    config = initialstate(N)
-    iT = 1.0 / T[tt];
-    iT2 = iT * iT;
+        for i in range(eqSteps):  # equilibrate
+            mcmove(config, iT)  # Monte Carlo moves
 
-    for i in range(eqSteps):  # equilibrate
-        mcmove(config, iT)  # Monte Carlo moves
+        for i in range(mcSteps):
+            mcmove(config, iT)
+            Ene = calcEnergy(config)  # calculate the energy
+            Mag = calcMag(config)  # calculate the magnetisation
+            E1 += Ene
+            M1 += Mag
+            M2 += (Mag * Mag)
+            E2 += (Ene * Ene)
 
-    for i in range(mcSteps):
-        mcmove(config, iT)
-        Ene = calcEnergy(config)  # calculate the energy
-        Mag = calcMag(config)  # calculate the magnetisation
+        E[tt] = n1 * E1
+        M[tt] = n1 * M1
+        C[tt] = (n1 * E2 - n2 * E1 * E1) * iT2
+        X[tt] = (n1 * M2 - n2 * M1 * M1) * iT
+        print(int(((tt + 1) / nt) * 10000) / 100, '% of №', n, ' test', sep='')
+        if c == 0:
+            c += 1
+            between = time.time()
+        print('Left:',
+              int((((int(((between - ttt)) * 1000) / 1000)*
+              ((100/(int((1 / nt) * 10000) / 100))-tt)
+              )/60)*100)/100,
+              'mins')
 
-        E1 += Ene
-        M1 += Mag
-        M2 += (Mag * Mag)
-        E2 += (Ene * Ene)
+    f = plt.figure(figsize=(18, 10))  # plot the calculated values
 
-    E[tt] = n1 * E1
-    M[tt] = n1 * M1
-    C[tt] = (n1 * E2 - n2 * E1 * E1) * iT2
-    X[tt] = (n1 * M2 - n2 * M1 * M1) * iT
+    sp1 = f.add_subplot(2, 2, 1)
+    plt.scatter(T, E, s=50, marker='o', color='IndianRed')
+    plt.xlabel("Temperature (T)", fontsize=20)
+    plt.ylabel("Energy ", fontsize=20)
+    plt.axis('tight')
 
-f = plt.figure(figsize=(18, 10))  # plot the calculated values
+    sp2 = f.add_subplot(2, 2, 2)
+    plt.scatter(T, abs(M), s=50, marker='o', color='RoyalBlue')
+    plt.xlabel("Temperature (T)", fontsize=20)
+    plt.ylabel("Magnetization ", fontsize=20)
+    plt.axis('tight')
 
-sp = f.add_subplot(2, 2, 1)
-plt.scatter(T, E, s=50, marker='o', color='IndianRed')
-plt.xlabel("Temperature (T)", fontsize=20)
-plt.ylabel("Energy ", fontsize=20)
-plt.axis('tight')
+    sp3 = f.add_subplot(2, 2, 3)
+    plt.scatter(T, C, s=50, marker='o', color='IndianRed')
+    plt.xlabel("Temperature (T)", fontsize=20)
+    plt.ylabel("Specific Heat ", fontsize=20)
+    plt.axis('tight')
 
-sp = f.add_subplot(2, 2, 2)
-plt.scatter(T, abs(M), s=50, marker='o', color='RoyalBlue')
-plt.xlabel("Temperature (T)", fontsize=20)
-plt.ylabel("Magnetization ", fontsize=20)
-plt.axis('tight')
-
-sp = f.add_subplot(2, 2, 3)
-plt.scatter(T, C, s=50, marker='o', color='IndianRed')
-plt.xlabel("Temperature (T)", fontsize=20)
-plt.ylabel("Specific Heat ", fontsize=20)
-plt.axis('tight')
-
-sp = f.add_subplot(2, 2, 4)
-plt.scatter(T, X, s=50, marker='o', color='RoyalBlue')
-plt.xlabel("Temperature (T)", fontsize=20)
-plt.ylabel("Susceptibility", fontsize=20)
-plt.axis('tight')
-
-plt.savefig('ising_MC_test4.png', bbox_inches='tight')
-plt.show()
+    sp4 = f.add_subplot(2, 2, 4)
+    plt.scatter(T, X, s=50, marker='o', color='RoyalBlue')
+    plt.xlabel("Temperature (T)", fontsize=20)
+    plt.ylabel("Susceptibility", fontsize=20)
+    plt.axis('tight')
+    name = 'ising_2d_MC_test' + str(n) + '.png'
+    plt.savefig(name, bbox_inches='tight', dpi=800)
+    print('№', n, ' test completed', sep='')
+    print("--- %s minutes ---" % (int(((time.time() - start_time) / 60) * 1000) / 1000))
+    break
