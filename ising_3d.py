@@ -66,6 +66,8 @@ def calcMag(config):
 
 
 def ising_3d(calc, proc):
+    if proc == 0:
+        start = time.time()
     Eeee = np.zeros(calc)
     Mmmm = np.zeros(calc)
     Cccc = np.zeros(calc)
@@ -76,6 +78,11 @@ def ising_3d(calc, proc):
         Mmmm[i] = sum(lists[1])
         Cccc[i] = sum(lists[2])
         Xxxx[i] = sum(lists[3])
+        if i == 0 and proc == 0:
+            print(int(((((((time.time() - start)))*
+                   ((100 / (int((1 / calc) * 10000) / 100)) - 1) / 60) * 100) / 100)*1000)/1000,
+                  'minutes left')
+
     file = open("E_%s.txt" % proc, "w")
     file.write(str(Eeee.tolist()))
     file.close()
@@ -90,13 +97,14 @@ def ising_3d(calc, proc):
     file.close()
 
 
+
 def sim_tt(N, tt):
     n1, n2 = 1.0 / (mcSteps * N * N), 1.0 / (mcSteps * mcSteps * N * N)
     iT = 1.0 / T[tt]
     E1 = np.array(np.zeros(1), dtype=np.float64)
     M1 = np.array(np.zeros(1), dtype=np.float64)
     E2 = np.array(np.zeros(1), dtype=np.float64)
-    M2 = np.array(np.zeros(1), dtype=np.float64)
+    M2 = np.array(np.zeros(1), dtype=np.longdouble)
     config = initial_state(N)
     for i in range(eqSteps):  # equilibrate
         mcmove(config, iT)  # Monte Carlo moves
@@ -126,13 +134,13 @@ def processesed(procs, calc):
 
 
 n_proc = multiprocessing.cpu_count()
-it = 100
+it = 200
 calc = it // n_proc + ((it // n_proc) != (it / n_proc))
 nt = int(calc * n_proc)  # number of temperature points
-eqSteps = 2 ** 7  # number of MC sweeps for equilibration
-mcSteps = 2 ** 7  # number of MC sweeps for calculation
-N = 15  # size of lattice
-T = np.linspace(2., 7., nt)  # 4.5
+eqSteps = 2 ** 8  # number of MC sweeps for equilibration
+mcSteps = 2 ** 8  # number of MC sweeps for calculation
+N = 20  # size of lattice
+T = np.linspace(2.3, 6., nt)  # 4.5
 if __name__ == "__main__":
     processesed(n_proc, calc)
     E = []
@@ -162,7 +170,6 @@ if __name__ == "__main__":
     C = [a for b in C for a in b]
     X = [a for b in X for a in b]
 
-    n = 1
     f = plt.figure(figsize=(18, 10))
 
     sp1 = f.add_subplot(2, 2, 1)
