@@ -64,11 +64,12 @@ def calcMag(config):
     mag = np.sum(config)
     return mag
 
+
 def ising_3d(calc, proc):
-    Eeee = [[], []]
-    Mmmm = [[], []]
-    Cccc = [[], []]
-    Xxxx = [[], []]
+    Eeee = np.zeros(calc)
+    Mmmm = np.zeros(calc)
+    Cccc = np.zeros(calc)
+    Xxxx = np.zeros(calc)
     for i in range(calc):
         lists = sim_tt(N, (calc * proc + i))
         Eeee[i] = sum(lists[0])
@@ -76,24 +77,26 @@ def ising_3d(calc, proc):
         Cccc[i] = sum(lists[2])
         Xxxx[i] = sum(lists[3])
     file = open("E_%s.txt" % proc, "w")
-    file.write(str(Eeee))
+    file.write(str(Eeee.tolist()))
     file.close()
     file = open("M_%s.txt" % proc, "w")
-    file.write(str(Mmmm))
+    file.write(str(Mmmm.tolist()))
     file.close()
     file = open("C_%s.txt" % proc, "w")
-    file.write(str(Cccc))
+    file.write(str(Cccc.tolist()))
     file.close()
     file = open("X_%s.txt" % proc, "w")
-    file.write(str(Xxxx))
+    file.write(str(Xxxx.tolist()))
     file.close()
+
+
 def sim_tt(N, tt):
     n1, n2 = 1.0 / (mcSteps * N * N), 1.0 / (mcSteps * mcSteps * N * N)
     iT = 1.0 / T[tt]
     E1 = np.array(np.zeros(1), dtype=np.float64)
     M1 = np.array(np.zeros(1), dtype=np.float64)
     E2 = np.array(np.zeros(1), dtype=np.float64)
-    M2 = np.array(np.zeros(1), dtype=np.float64)  ###
+    M2 = np.array(np.zeros(1), dtype=np.float64)
     config = initial_state(N)
     for i in range(eqSteps):  # equilibrate
         mcmove(config, iT)  # Monte Carlo moves
@@ -110,6 +113,8 @@ def sim_tt(N, tt):
     Cc = (n1 * E2 - n2 * E1 * E1) * (iT * iT)
     Xx = (n1 * M2 - n2 * M1 * M1) * iT
     return Ee, Mm, Cc, Xx
+
+
 def processesed(procs, calc):
     processes = []
     for proc in range(procs):
@@ -118,20 +123,71 @@ def processesed(procs, calc):
         p.start()
     for p in processes:
         p.join()
+
+
 n_proc = multiprocessing.cpu_count()
-it = 16
+it = 100
 calc = it // n_proc + ((it // n_proc) != (it / n_proc))
 nt = int(calc * n_proc)  # number of temperature points
-eqSteps = 2 ** 5  # number of MC sweeps for equilibration
-mcSteps = 2 ** 5  # number of MC sweeps for calculation
-N = 5  # size of lattice
+eqSteps = 2 ** 7  # number of MC sweeps for equilibration
+mcSteps = 2 ** 7  # number of MC sweeps for calculation
+N = 15  # size of lattice
 T = np.linspace(2., 7., nt)  # 4.5
-E, M, C, X = np.array(np.zeros(nt), dtype=np.float64), np.array(np.zeros(nt), dtype=np.float64), \
-             np.array(np.zeros(nt), dtype=np.float64), np.array(np.zeros(nt), dtype=np.float64)
 if __name__ == "__main__":
     processesed(n_proc, calc)
+    E = []
+    M = []
+    C = []
+    X = []
+    E_list = []
+    M_list = []
+    C_list = []
+    X_list = []
+    for i in range(n_proc):
+        E_list.append("E_%s.txt" % i)
+        M_list.append("M_%s.txt" % i)
+        C_list.append("C_%s.txt" % i)
+        X_list.append("X_%s.txt" % i)
+    for i in range(n_proc):
+        with open(str(E_list[i]), "r") as f:
+            E.append(eval(f.readline()))
+        with open(str(M_list[i]), "r") as f:
+            M.append(eval(f.readline()))
+        with open(str(C_list[i]), "r") as f:
+            C.append(eval(f.readline()))
+        with open(str(X_list[i]), "r") as f:
+            X.append(eval(f.readline()))
+    E = [a for b in E for a in b]
+    M = np.array([a for b in M for a in b])
+    C = [a for b in C for a in b]
+    X = [a for b in X for a in b]
 
+    n = 1
+    f = plt.figure(figsize=(18, 10))
 
+    sp1 = f.add_subplot(2, 2, 1)
+    plt.scatter(T, E, s=20, marker='o', color='IndianRed')
+    plt.xlabel("$T$", fontsize=10)
+    plt.ylabel("E", fontsize=10)
+    plt.axis('tight')
 
+    sp2 = f.add_subplot(2, 2, 2)
+    plt.scatter(T, abs(M), s=20, marker='o', color='RoyalBlue')
+    plt.xlabel("$T$", fontsize=10)
+    plt.ylabel("M ", fontsize=10)
+    plt.axis('tight')
 
+    sp3 = f.add_subplot(2, 2, 3)
+    plt.scatter(T, C, s=20, marker='o', color='IndianRed')
+    plt.xlabel("$T$", fontsize=10)
+    plt.ylabel("$C_v$", fontsize=10)
+    plt.axis('tight')
 
+    sp4 = f.add_subplot(2, 2, 4)
+    plt.scatter(T, X, s=20, marker='o', color='RoyalBlue')
+    plt.xlabel("$T$", fontsize=10)
+    plt.ylabel("$\chi$", fontsize=10)
+    plt.axis('tight')
+
+    name = 'ising_3d_MC_test_N=' + str(N) + '.png'
+    plt.savefig(name, bbox_inches='tight', dpi=500)
