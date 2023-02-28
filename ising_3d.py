@@ -7,7 +7,8 @@ import multiprocessing
 import os
 from datetime import datetime
 
-# wrapped-out model
+# the periodic (b = 1), antiperiodic (b = −1) and open (b = 0) boundary conditions
+# with impurity (imp = 0) and without (imp = 1)
 # no external field
 # 3d
 # J = 1 interaction
@@ -18,50 +19,60 @@ matplotlib.rcParams['text.latex.preamble'] = \
 matplotlib.rcParams['font.family'] = 'sans-serif'
 matplotlib.rcParams['font.sans-serif'] = ['Tahoma']
 
-def mcmove(config, beta):
+
+def mcmove(config, beta, B):
     """Monte Carlo move using Metropolis algorithm """
-    for i in range(N):
-        for j in range(N):
-            for k in range(N):
-                a = np.random.randint(0, N)
-                b = np.random.randint(0, N)
-                c = np.random.randint(0, N)
-                s = config[a, b, c]
-                nb = config[(a + 1) % N, b, c] + config[a, (b + 1) % N, c] \
-                     + config[(a - 1) % N, b, c] + config[a, (b - 1) % N, c] \
-                     + config[a, b, (c - 1) % N] + config[a, b, (c + 1) % N]
+    for a in range(N):
+        for b in range(N):
+            for c in range(N):
+                i = np.random.randint(0, N)
+                j = np.random.randint(0, N)
+                k = np.random.randint(0, N)
+                s = config[i, j, k]
+                nb = (B**(((i + 1) % N) != (i+1)))*config[(i + 1) % N, j, k]\
+                     + (B**(((j + 1) % N) != (j+1)))* config[i, (j + 1) % N, k] \
+                     + (B**(((i - 1) % N) != (i-1)))* config[(i - 1), j, k]\
+                     + (B**(((j- 1) % N) != (j-1)))* config[i, (j - 1), k] \
+                     + (B**(((k + 1) % N) != (k+1)))* config[i, j, (k + 1) % N]\
+                     + (B**(((k- 1) % N) != (k-1)))* config[i, j, (k - 1)]
                 cost = 2 * s * nb  # * J
                 if cost < 0:
                     s *= -1
                 elif rand() < np.exp(-cost * beta):
                     s *= -1
-                config[a, b, c] = s
+                config[i, j, k] = s
     return config
 
-def calcEnergy(config):
+
+def calcEnergy(config, B):
     """Energy of a given configuration"""
     energy = np.array(np.zeros(1), dtype=np.longdouble)
-    for i in range(len(config)):
-        for j in range(len(config)):
-            for k in range(len(config)):
-                nb = config[(i + 1) % N, j, k] + config[i, (j + 1) % N, k] \
-                     + config[(i - 1) % N, j, k] + config[i, (j - 1) % N, k] \
-                     + config[i, j, (k + 1) % N] + config[i, j, (k - 1) % N]
+    for i in range(N):
+        for j in range(N):
+            for k in range(N):
+                nb = (B**(((i + 1) % N) != (i+1)))*config[(i + 1) % N, j, k]\
+                     + (B**(((j + 1) % N) != (j+1)))* config[i, (j + 1) % N, k] \
+                     + (B**(((i - 1) % N) != (i-1)))* config[(i - 1), j, k]\
+                     + (B**(((j- 1) % N) != (j-1)))* config[i, (j - 1), k] \
+                     + (B**(((k + 1) % N) != (k+1)))* config[i, j, (k + 1) % N]\
+                     + (B**(((k- 1) % N) != (k-1)))* config[i, j, (k - 1)]
                 energy += -1 * nb * config[i, j, k]
     return energy / 6.
-def ising_3d(calc, proc):
+
+
+def ising_3d(calc, proc, b, imp):
     if proc == 0:
         start = time.time()
-    par = np.zeros(4*calc).reshape((4, calc))
+    par = np.zeros(4 * calc).reshape((4, calc))
     for i in range(calc):
-        lists = sim_tt(N, (calc * proc + i))
+        lists = sim_tt(N, (calc * proc + i), b, imp)
         par[0][i] = lists[0]
         par[1][i] = lists[1]
         par[2][i] = lists[2]
         par[3][i] = lists[3]
         if i == 0 and proc == 0 == 0:
-            print(int(((((time.time() - start)))*
-                   ((100 / (int((1 / calc) * 10000) / 100)) - 1) / 60) * 100) / 100,
+            print(int(((((time.time() - start))) *
+                       ((100 / (int((1 / calc) * 10000) / 100)) - 1) / 60) * 100) / 100,
                   'minutes left')
             print("Current Time =", datetime.now().strftime("%H:%M:%S"))
     file = open(f"E_{proc}.txt", "w")
@@ -78,19 +89,20 @@ def ising_3d(calc, proc):
     file.close()
 
 
-def sim_tt(N, tt):
+def sim_tt(N, tt, b, imp):
     n1, n2 = 1.0 / (mcSteps * N * N), 1.0 / (mcSteps * mcSteps * N * N)
     iT = 1.0 / T[tt]
     E1 = np.array(np.zeros(1), dtype=np.longdouble)
     M1 = np.array(np.zeros(1), dtype=np.longdouble)
     E2 = np.array(np.zeros(1), dtype=np.longdouble)
     M2 = np.array(np.zeros(1), dtype=np.longdouble)
-    config = (2 * np.random.randint(2, size=(N, N, N)) - 1)
+    config = (((2 - (imp == 0)) * np.random.randint(3 - imp, size=(N, N, N))) - (imp != 0)) - (
+                (imp == 0) * np.ones((N, N, N)))
     for i in range(eqSteps):  # equilibrate
-        mcmove(config, iT)  # Monte Carlo moves
+        mcmove(config, iT, b)  # Monte Carlo moves
     for i in range(mcSteps):
-        mcmove(config, iT)
-        Ene = calcEnergy(config)  # calculate the energy
+        mcmove(config, iT, b)
+        Ene = calcEnergy(config, b)  # calculate the energy
         Mag = np.sum(config, dtype=np.longdouble)  # calculate the magnetisation
         E1 += Ene
         M1 += Mag
@@ -99,14 +111,15 @@ def sim_tt(N, tt):
     return n1 * E1, n1 * M1, (E2 - n2 * E1 * E1) * (iT * iT), (M2 - n2 * M1 * M1) * iT
 
 
-def processesed(procs, calc):
+def processesed(procs, calc, b, imp):
     processes = []
     for proc in range(procs):
-        p = multiprocessing.Process(target=ising_3d, args=(calc, proc))
+        p = multiprocessing.Process(target=ising_3d, args=(calc, proc, b, imp))
         processes.append(p)
         p.start()
     for p in processes:
         p.join()
+
 
 # 3d
 n_proc = multiprocessing.cpu_count()
@@ -118,8 +131,12 @@ mcSteps = 2 ** 9  # number of MC sweeps for calculation
 N = 10  # size of lattice
 T = np.linspace(2.5, 5.5, nt)  # 4.5
 if __name__ == "__main__":
+    print('Choose boundary condition:\nPeriodic     == 1\nAntiperiodic == -1\nOpen         == 0')
+    b = int(input('input: '))
+    print('\nDo you need impurity?\nYes == 0\nNo  == 1')
+    imp = int(input('input: '))
     Start = time.time()
-    processesed(n_proc, calc)
+    processesed(n_proc, calc, b, imp)
     E = []
     M = []
     C = []
@@ -177,6 +194,7 @@ if __name__ == "__main__":
     plt.xlabel("$T$", fontsize=25)
     plt.ylabel("$\chi$", fontsize=25)
     plt.axis('tight')
-
-    plt.savefig(f'ising_3d_MC_test_N={str(N)}.png', bbox_inches='tight', dpi=500)
+    impurity = 'YN'
+    BC = 'OPA'
+    plt.savefig(f'ising_2d_MC_test_N={str(N)}_{BC[b]}_{impurity[imp]}.png', bbox_inches='tight', dpi=500)
     print(f'total time {int(((time.time() - Start)*1000)/60)/1000} minutes')
