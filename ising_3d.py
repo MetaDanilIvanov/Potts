@@ -52,27 +52,26 @@ def calcEnergy(config, B):
             for k in range(N):
                 energy += -((B ** (((i + 1) % N) != (i + 1))) * config[(i + 1) % N, j, k]
                             + (B ** (((j + 1) % N) != (j + 1))) * config[i, (j + 1) % N, k]
-                            + (B ** (((i - 1) % N) != (i - 1))) * config[(i - 1), j, k]
-                            + (B ** (((j - 1) % N) != (j - 1))) * config[i, (j - 1), k]
+                            + (B ** (((i - 1) % N) != (i - 1))) * config[(i - 1) % N, j, k]
+                            + (B ** (((j - 1) % N) != (j - 1))) * config[i, (j - 1) % N, k]
                             + (B ** (((k + 1) % N) != (k + 1))) * config[i, j, (k + 1) % N]
-                            + (B ** (((k - 1) % N) != (k - 1))) * config[i, j, (k - 1)]) * config[i, j, k]
+                            + (B ** (((k - 1) % N) != (k - 1))) * config[i, j, (k - 1) % N]) * config[i, j, k]
     return energy / 6.
 
 
 def ising_3d(calc, proc, b, imp):
     """Calculate energy, magnetisation, specific heat and magnetic susceptibility"""
     flag = True
+    start = time.time()
     if proc == 0:
-        start = time.time()
         flag = False
     par = np.zeros(4 * calc).reshape((4, calc))
     for i in range(calc):
         par[0][i], par[1][i], par[2][i], par[3][i] = sim_tt(N, (calc * proc + i), b, imp)
         if flag == False:
             flag = True
-            print("\n", int(((((time.time() - start))) *
-                             ((100 / (int((1 / calc) * 10000) / 100)) - 1) / 60) * 100) / 100,
-                  'minutes left')
+            left = ((time.time() - start) * ((100 / (int((1 / calc) * 10000) / 100)) - 1) / 60)
+            print(f"\n{left:.3f} minutes left")
             print("сurrent Time =", datetime.now().strftime("%H:%M:%S"))
     for i in range(4):
         file = open(f"{'EMCX'[i]}_{proc}.txt", "w")
@@ -82,8 +81,8 @@ def ising_3d(calc, proc, b, imp):
 
 def sim_tt(N, tt, b, imp):
     """Make all calculations at temperature point"""
-    n1, n2 = 1.0 / (mcSteps * N * N*N), 1.0 / (mcSteps * mcSteps * N * N*N)
-    beta = 1.0 / (T[tt]*scipy.constants.k**0)
+    n1, n2 = 1.0 / (mcSteps * N * N * N), 1.0 / (mcSteps * mcSteps * N * N * N)
+    beta = 1.0 / (T[tt])
     E1 = np.array(np.zeros(1), dtype=np.longdouble)
     M1 = np.array(np.zeros(1), dtype=np.longdouble)
     E2 = np.array(np.zeros(1), dtype=np.longdouble)
@@ -116,13 +115,13 @@ def processesed(procs, calc, b, imp):
 
 # 3d
 n_proc = multiprocessing.cpu_count()
-tp = 150
+tp = 30
 calc = tp // n_proc + ((tp // n_proc) != (tp / n_proc))
 nt = int(calc * n_proc)  # number of temperature points
-eqSteps = 2 ** 9  # number of MC sweeps for equilibration
-mcSteps = 2 ** 9  # number of MC sweeps for calculation
-N = 7  # size of lattice
-T = np.linspace(2., 5.5, nt)  # 4.5
+eqSteps = 2 ** 10  # number of MC sweeps for equilibration
+mcSteps = 2 ** 10  # number of MC sweeps for calculation
+N = 10  # size of lattice
+T = np.linspace(4.4, 4.6, nt)  # 4.5
 if __name__ == "__main__":
     # print('Choose boundary condition:\nPeriodic     == 1\nAntiperiodic == -1\nOpen         == 0')
     # b = int(input('input: '))
@@ -187,6 +186,6 @@ if __name__ == "__main__":
     file = open("T.txt", "w")
     file.write(str(T.tolist()))
     file.close()
-    print(f'total time {int(((time.time() - Start) * 1000) / 60) / 1000} minutes')
-    t_c = T[C.index(max(C))]
-    print(t_c)
+    print(f'total time {((time.time() - Start) / 60):.3f} minutes')
+    t_c = 4.5
+    # print(t_c)

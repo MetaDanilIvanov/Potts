@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 from numpy.random import rand
 import matplotlib.pyplot as plt
@@ -25,27 +27,24 @@ def mcmove(config, beta, B):
     for a in range(N):
         for b in range(N):
             i, j = np.random.randint(0, N), np.random.randint(0, N)
-            s = config[i, j]
-            cost = 2 * s * ((B ** (((i + 1) % N) != (i + 1))) * config[(i + 1) % N, j]
-                            + (B ** (((j + 1) % N) != (j + 1))) * config[i, (j + 1) % N]
-                            + (B ** (((i - 1) % N) != (i - 1))) * config[(i - 1), j]
-                            + (B ** (((j - 1) % N) != (j - 1))) * config[i, (j - 1)])
-            if cost < 0:
-                s *= -1
-            elif rand() < np.exp(-cost * beta):
-                s *= -1
-            config[i, j] = s
+            nb = ((B ** (((i + 1) % N) != (i + 1))) * config[(i + 1) % N, j]
+                  + (B ** (((j + 1) % N) != (j + 1))) * config[i, (j + 1) % N]
+                  + (B ** (((i - 1) % N) != (i - 1))) * config[(i - 1), j]
+                  + (B ** (((j - 1) % N) != (j - 1))) * config[i, (j - 1)])
+            dE = 2 * config[i, j] * (H + J * nb)
+            if dE < 0 or rand() < np.exp(-dE / beta):
+                config[i, j] *= -1
 
 
 def calcEnergy(config, B):
     """Energy of a given configuration"""
-    energy = np.array(np.zeros(1), dtype=np.longdouble)
+    energy = 0
     for i in range(N):
         for j in range(N):
-            energy += -((B ** (((i + 1) % N) != (i + 1))) * config[(i + 1) % N, j]
-                        + (B ** (((j + 1) % N) != (j + 1))) * config[i, (j + 1) % N]
-                        + (B ** (((i - 1) % N) != (i - 1))) * config[(i - 1), j]
-                        + (B ** (((j - 1) % N) != (j - 1))) * config[i, (j - 1)]) * config[i, j]
+            energy += -J * ((B ** (((i + 1) % N) != (i + 1))) * config[(i + 1) % N, j]
+                            + (B ** (((j + 1) % N) != (j + 1))) * config[i, (j + 1) % N]
+                            + (B ** (((i - 1) % N) != (i - 1))) * config[(i - 1) % N, j]
+                            + (B ** (((j - 1) % N) != (j - 1))) * config[i, (j - 1) % N]) * config[i, j]
     return energy / 4.
 
 
@@ -60,10 +59,9 @@ def ising_2d(calc, proc, b, imp):
         par[0][i], par[1][i], par[2][i], par[3][i] = sim_tt(N, (calc * proc + i), b, imp)
         if flag == False:
             flag = True
-            print('\nabout', int(((((time.time() - start))) *
-                             ((100 / (int((1 / calc) * 10000) / 100)) - 1) / 60) * 100) / 100,
-                  'minutes left')
-            print("current Time =", datetime.now().strftime("%H:%M:%S"))
+            left = ((time.time() - start) * ((100 / (int((1 / calc) * 10000) / 100)) - 1) / 60)
+            print(f"\n{left:.2f} minutes left")
+            print("сurrent Time =", datetime.now().strftime("%H:%M:%S"))
     for i in range(4):
         file = open(f"{'EMCX'[i]}_{proc}.txt", "w")
         file.write(str(par[i].tolist()))
@@ -78,12 +76,13 @@ def sim_tt(N, tt, b, imp):
     M1 = np.array(np.zeros(1), dtype=np.longdouble)
     E2 = np.array(np.zeros(1), dtype=np.longdouble)
     M2 = np.array(np.zeros(1), dtype=np.longdouble)
-    config = (((2 - (imp == 0)) * np.random.randint(3 - imp, size=(N, N))) - (imp != 0)) - (
-            (imp == 0) * np.ones((N, N)))
+    # config = (((2 - (imp == 0)) * np.random.randint(3 - imp, size=(N, N))) - (imp != 0)) - (
+    #         (imp == 0) * np.ones((N, N)))
+    config = (((2 * np.random.randint(2, size=(N, N))) - 1))
     for i in range(eqSteps):  # equilibrate
-        mcmove(config, iT, b)  # Monte Carlo moves
+        mcmove(config, T[tt], b)  # Monte Carlo moves
     for i in range(mcSteps):
-        mcmove(config, iT, b)
+        mcmove(config, T[tt], b)
         Ene = calcEnergy(config, b)  # calculate the energy
         Mag = np.sum(config, dtype=np.longdouble)  # calculate the magnetisation
         E1 += Ene
@@ -91,7 +90,6 @@ def sim_tt(N, tt, b, imp):
         M2 += (n1 * Mag * Mag)
         E2 += (n1 * Ene * Ene)
     return n1 * E1, n1 * M1, (E2 - n2 * E1 * E1) * (iT * iT), (M2 - n2 * M1 * M1) * iT
-
 
 def processesed(procs, calc, b, imp):
     """Start multiprocessing"""
@@ -106,13 +104,15 @@ def processesed(procs, calc, b, imp):
 
 # 2d
 n_proc = multiprocessing.cpu_count()
-it = 3000
+it = 60
 calc = it // n_proc + ((it // n_proc) != (it / n_proc))
 nt = int(calc * n_proc)  # number of temperature points
-eqSteps = 2 ** 10  # number of MC sweeps for equilibration
-mcSteps = 2 ** 10  # number of MC sweeps for calculation
-N = 5  # size of lattice
-T = np.linspace(1.2, 3.5, nt)  # 2.25
+eqSteps = 2 ** 9  # number of MC sweeps for equilibration
+mcSteps = 2 ** 9  # number of MC sweeps for calculation
+N = 10  # size of lattice
+T = np.linspace(2.25, 2.3, nt)  # 2.268
+H = 0
+J = 1
 if __name__ == "__main__":
     # print('Choose boundary condition:\nPeriodic     == 1\nAntiperiodic == -1\nOpen         == 0')
     # b = int(input('input: '))
@@ -167,15 +167,12 @@ if __name__ == "__main__":
     plt.ylabel("$\chi$", fontsize=25)
     plt.axis('tight')
     plt.savefig(f'ising_2d_MC_test_N={str(N)}_{"OPA"[b]}_{"YN"[imp]}.png', bbox_inches='tight', dpi=300)
-    for i in range(4):
-        letterr = 'EMCX'[i]
-        letter = [E, M.tolist(), C, X]
+    # plt.show()
+    for i in range(5):
+        letterr = 'EMCXT'[i]
+        letter = [E, M.tolist(), C, X, T.tolist()]
         file = open(f"{letterr}.txt", "w")
         file.write(str(letter[i]))
         file.close()
-    file = open("T.txt", "w")
-    file.write(str(T.tolist()))
-    file.close()
-    print(f'total time {int(((time.time() - Start) * 1000) / 60) / 1000} minutes')
-    t_c = T[C.index(max(C))]
-    print(t_c)
+    print(f'total time {((time.time() - Start) / 60):.2f} minutes')
+    t_c = 2.268
